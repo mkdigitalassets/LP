@@ -31,7 +31,6 @@
         .bg-balance { background: #3b82f6; }
         .bg-tehsil-card { background: #ffffff; border-left: 5px solid #6366f1 !important; }
 
-        /* Reset Button Styling */
         .btn-reset-filter { font-size: 0.7rem; padding: 2px 8px; margin-top: 4px; display: block; width: fit-content; text-decoration: none; color: #64748b; }
         .btn-reset-filter:hover { color: #ef4444; }
 
@@ -271,10 +270,23 @@
             const teh = $('#filter-tehsil').val();
             const mgr = $('#filter-manager').val();
             const mac = $('#filter-machinery').val();
+            const from = $('#filter-from').val();
+            const to = $('#filter-to').val();
 
             if(teh) data = data.filter(i => i.ParentTehsil === teh);
             if(mgr) data = data.filter(i => i.ManagerName === mgr);
             if(mac) data = data.filter(i => i.MachinaryName === mac);
+            
+            // Apply Date Range Filter for regular category list
+            if(from || to) {
+                data = data.filter(i => {
+                    if(!i.Date) return false;
+                    const d = new Date(i.Date).setHours(0,0,0,0);
+                    const s = from ? new Date(from).setHours(0,0,0,0) : null;
+                    const e = to ? new Date(to).setHours(0,0,0,0) : null;
+                    return (!s || d >= s) && (!e || d <= e);
+                });
+            }
 
             if (!data.length) { $('#table-body').html("<tr><td colspan='10' class='text-center py-4'>No Data found.</td></tr>"); return; }
             let headers = Object.keys(data[0]).filter(h => !['rowNum', 'Category', 'ID', 'Password'].includes(h));
