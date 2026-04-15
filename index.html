@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Secured & Updated</title>
+    <title>Admin Panel - Debug Mode</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -11,7 +11,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { background-color: #f4f7fa; font-family: 'Segoe UI', sans-serif; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+        /* user-select: none; ko hata diya taake text copy ho sakay */
+        body { background-color: #f4f7fa; font-family: 'Segoe UI', sans-serif; }
         .navbar { background-color: #1e293b !important; border-bottom: 3px solid #3b82f6; }
         .main-card { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; }
         .card-custom { transition: all 0.3s ease; border: none; border-top: 5px solid #0d6efd; cursor: pointer; border-radius: 12px; }
@@ -31,7 +32,6 @@
         .bg-balance { background: #3b82f6; }
         .bg-tehsil-card { background: #ffffff; border-left: 5px solid #6366f1 !important; }
 
-        /* Reset Button Styling */
         .btn-reset-filter { font-size: 0.7rem; padding: 2px 8px; margin-top: 4px; display: block; width: fit-content; text-decoration: none; color: #64748b; }
         .btn-reset-filter:hover { color: #ef4444; }
 
@@ -44,7 +44,7 @@
         }
     </style>
 </head>
-<body oncontextmenu="return false;"> 
+<body> 
     <div id="login-overlay">
         <div class="login-box shadow-lg">
             <div class="text-center mb-4">
@@ -173,11 +173,14 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
+        // Key restrictions ko comment out kar diya
+        /*
         document.onkeydown = function(e) {
             if(e.keyCode == 123) return false;
             if(e.ctrlKey && e.shiftKey && e.keyCode == 'I'.charCodeAt(0)) return false;
             if(e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false;
         };
+        */
 
         const scriptURL = 'https://script.google.com/macros/s/AKfycbx6JmtiintjNRVFIYR855v6P30BA9tSyWhVnBus2rDIw4gvfw0ZD3ZY-Mq0-fBsuJnpCQ/exec';
         let currentUser = { role: '', name: '' }, allData = [], currentCategory = "";
@@ -196,11 +199,17 @@
             } else {
                 $('#login-error').hide();
                 $('#login-overlay button').text("Checking...").prop('disabled', true);
-                fetch(scriptURL).then(res => res.json()).then(data => {
+                
+                // Fetch with CORS mode
+                fetch(scriptURL, { mode: 'cors' }).then(res => res.json()).then(data => {
                     const manager = data.find(i => i.Category === 'Managers' && String(i.Description).toLowerCase() === user && String(i.Password) === pass);
                     if(manager) { currentUser = { role: 'manager', name: manager.Description }; startApp(); }
                     else { $('#login-error').fadeIn(); $('#login-overlay button').text("LOGIN").prop('disabled', false); }
-                }).catch(() => { alert("Error connecting!"); $('#login-overlay button').text("LOGIN").prop('disabled', false); });
+                }).catch((err) => { 
+                    console.error("Login Error:", err);
+                    alert("Connection error! Please check if your Script URL is deployed for 'Anyone'."); 
+                    $('#login-overlay button').text("LOGIN").prop('disabled', false); 
+                });
             }
         }
 
@@ -251,7 +260,7 @@
 
         function fetchListData() {
             $('#table-body').html("<tr><td colspan='10' class='text-center py-5'><div class='spinner-grow text-primary'></div></td></tr>");
-            fetch(scriptURL).then(res => res.json()).then(data => {
+            fetch(scriptURL, { mode: 'cors' }).then(res => res.json()).then(data => {
                 allData = data; updateDropdowns();
                 if(currentCategory === "FinalReport") generateFinalReport();
                 else {
@@ -259,6 +268,9 @@
                     if(currentUser.role === 'manager' && currentCategory === 'ManagerExpenses') filtered = filtered.filter(i => i.ManagerName === currentUser.name);
                     renderTable(filtered);
                 }
+            }).catch(err => {
+                console.error("Fetch Error:", err);
+                $('#table-body').html("<tr><td colspan='10' class='text-center text-danger'>Error loading data. Check Console.</td></tr>");
             });
         }
 
@@ -276,7 +288,7 @@
             if(mgr) data = data.filter(i => i.ManagerName === mgr);
             if(mac) data = data.filter(i => i.MachinaryName === mac);
 
-            if (!data.length) { $('#table-body').html("<tr><td colspan='10' class='text-center py-4'>No Data found.</td></tr>"); return; }
+            if (!data.length) { $('#table-body').html("<tr><td colspan='10' class='text-center py-4 text-muted'>No Data found.</td></tr>"); return; }
             let headers = Object.keys(data[0]).filter(h => !['rowNum', 'Category', 'ID', 'Password'].includes(h));
             $('#table-head').html(`<tr>${headers.map(h => `<th>${h === 'Description' && currentCategory === 'Managers' ? 'Manager Name' : h}</th>`).join('')}<th class="no-print">Actions</th></tr>`);
             let total = 0, rowsHtml = data.map(row => {
