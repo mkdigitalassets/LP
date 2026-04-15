@@ -27,7 +27,7 @@
 
         .summary-box { padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px; color: white; }
         .bg-income { background: #22c55e; }
-        .bg-amount-sent { background: #8b5cf6; } /* Purple color for Sent Amount */
+        .bg-amount-sent { background: #8b5cf6; } 
         .bg-expense { background: #ef4444; }
         .bg-balance { background: #3b82f6; }
         .bg-tehsil-card { background: #ffffff; border-left: 5px solid #6366f1 !important; }
@@ -131,15 +131,11 @@
 
                 <div id="data-list-container">
                     <div id="filter-container" class="row g-2 mb-4 no-print border rounded p-3 bg-light mx-0 shadow-sm">
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <select id="filter-tehsil" class="select2-bs5"></select>
                             <a href="javascript:void(0)" class="btn-reset-filter" onclick="$('#filter-tehsil').val('').trigger('change')">Reset Tehsil</a>
                         </div>
-                        <div class="col-md-2">
-                            <select id="filter-manager" class="select2-bs5"></select>
-                            <a href="javascript:void(0)" class="btn-reset-filter" onclick="$('#filter-manager').val('').trigger('change')">Reset Manager</a>
-                        </div>
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <select id="filter-machinery" class="select2-bs5"></select>
                             <a href="javascript:void(0)" class="btn-reset-filter" onclick="$('#filter-machinery').val('').trigger('change')">Reset Machine</a>
                         </div>
@@ -264,19 +260,20 @@
         }
 
         function resetAllFilters() {
-            $('#filter-tehsil, #filter-manager, #filter-machinery').val('').trigger('change');
+            $('#filter-tehsil, #filter-machinery').val('').trigger('change');
             $('#filter-from, #filter-to').val('');
+            // Fix: Re-calling list function to show all data after reset
+            if(currentCategory === "FinalReport") generateFinalReport();
+            else fetchListData();
         }
 
         function renderTable(data) {
             const teh = $('#filter-tehsil').val();
-            const mgr = $('#filter-manager').val();
             const mac = $('#filter-machinery').val();
             const from = $('#filter-from').val();
             const to = $('#filter-to').val();
 
             if(teh) data = data.filter(i => i.ParentTehsil === teh);
-            if(mgr) data = data.filter(i => i.ManagerName === mgr);
             if(mac) data = data.filter(i => i.MachinaryName === mac);
             
             if(from || to) {
@@ -308,13 +305,12 @@
         }
 
         function generateFinalReport() {
-            const teh = $('#filter-tehsil').val(), mgr = $('#filter-manager').val(), mac = $('#filter-machinery').val();
+            const teh = $('#filter-tehsil').val(), mac = $('#filter-machinery').val();
             const from = $('#filter-from').val(), to = $('#filter-to').val();
             
             let data = allData.filter(i => !['Tehsils', 'Managers', 'Machinary'].includes(i.Category));
             
             if(teh) data = data.filter(i => i.ParentTehsil === teh);
-            if(mgr) data = data.filter(i => i.ManagerName === mgr);
             if(mac) data = data.filter(i => i.MachinaryName === mac);
             if(from || to) {
                 data = data.filter(i => {
@@ -329,7 +325,6 @@
 
             $('#table-head').html(`<tr><th>Date</th><th>Category</th><th>Details</th><th>Tehsil</th><th>Expenses (Debit)</th><th>Amount Received (Credit)</th></tr>`);
             
-            // Filter only Expenses for the main table rows as per your requirement
             let expenseData = data.filter(i => i.Category !== 'Income' && i.Category !== 'AmountSent');
             let incomeData = data.filter(i => i.Category === 'Income');
             let sentData = data.filter(i => i.Category === 'AmountSent');
@@ -342,7 +337,6 @@
                 return `<tr><td>${row.Date ? row.Date.split('T')[0] : '-'}</td><td><span class="badge bg-danger">${row.Category}</span></td><td><strong>${row.ManagerName || row.MachinaryName || ''}</strong> ${row.Description}</td><td>${tName}</td><td class="text-danger">${amt.toLocaleString()}</td><td>-</td></tr>`;
             }).join('');
 
-            // Calculate summaries from other categories silently
             incomeData.forEach(i => { 
                 let tName = i.ParentTehsil || "General";
                 if(!tehStats[tName]) tehStats[tName] = { income: 0, expense: 0, sent: 0 };
@@ -356,7 +350,6 @@
                 totalSent += parseFloat(i.Amount || 0);
             });
 
-            // Footer Rows for Totaling
             rows += `<tr class="table-dark fw-bold"><td colspan="4">TOTAL EXPENSES</td><td class="text-danger">${totalExp.toLocaleString()}</td><td>-</td></tr>`;
             rows += `<tr class="table-info fw-bold"><td colspan="4">TOTAL AMOUNT SENT TO THIS TEHSIL</td><td>-</td><td class="text-primary">${totalSent.toLocaleString()}</td></tr>`;
             
@@ -366,7 +359,7 @@
             let tehHtml = `<div class="col-12 mt-4 mb-2"><h5 class="fw-bold border-bottom pb-2">Tehsil Summary Card</h5></div>`;
             for (let t in tehStats) {
                 let bal = tehStats[t].sent - tehStats[t].expense;
-                tehHtml += `<div class="col-md-4 mb-3"><div class="card p-3 shadow-sm bg-tehsil-card border-0"><h6 class="fw-bold text-primary mb-1">${t}</h6><div class="small text-muted">Income From Tehsil: ${tehStats[t].income.toLocaleString()}</div><div class="d-flex justify-content-between small text-muted"><span>Sent to Tehsil: ${tehStats[t].sent.toLocaleString()}</span><span>Expenses: ${tehStats[t].expense.toLocaleString()}</span></div><div class="mt-2 pt-2 border-top d-flex justify-content-between"><strong>Balance:</strong> <strong class="${bal >=0 ? 'text-success' : 'text-danger'}">${bal.toLocaleString()}</strong></div></div></div>`;
+                tehHtml += `<div class="col-md-4 mb-3"><div class="card p-3 shadow-sm bg-tehsil-card border-0"><h6 class="fw-bold text-primary mb-1">${t}</h6><div class="small text-muted">Income From Tehsil: ${tehStats[t].income.toLocaleString()}</div><div class="d-flex justify-content-between small text-muted"><span>Sent: ${tehStats[t].sent.toLocaleString()}</span><span>Exp: ${tehStats[t].expense.toLocaleString()}</span></div><div class="mt-2 pt-2 border-top d-flex justify-content-between"><strong>Balance:</strong> <strong class="${bal >=0 ? 'text-success' : 'text-danger'}">${bal.toLocaleString()}</strong></div></div></div>`;
             }
             
             $('#table-body').html(rows || "<tr><td colspan='6' class='text-center'>No data found</td></tr>");
@@ -378,17 +371,20 @@
                 ${tehHtml}`);
         }
 
-        function applyFilters() { renderTable(allData.filter(i => i.Category === currentCategory)); }
+        function applyFilters() { 
+            if(currentCategory === "FinalReport") generateFinalReport();
+            else renderTable(allData.filter(i => i.Category === currentCategory)); 
+        }
 
         function updateDropdowns() {
-            const tehsils = allData.filter(i => i.Category === 'Tehsils'), managers = allData.filter(i => i.Category === 'Managers'), machinary = allData.filter(i => i.Category === 'Machinary');
+            const tehsils = allData.filter(i => i.Category === 'Tehsils'), machinary = allData.filter(i => i.Category === 'Machinary'), managers = allData.filter(i => i.Category === 'Managers');
             const tehOpts = '<option value="">Select Tehsil</option>' + tehsils.map(t => `<option value="${t.Description}">${t.Description}</option>`).join('');
-            const mgrOpts = '<option value="">Select Manager</option>' + managers.map(m => `<option value="${m.Description}">${m.Description}</option>`).join('');
             const macOpts = '<option value="">Select Machinery</option>' + machinary.map(m => `<option value="${m.Description}">${m.Description}</option>`).join('');
+            const mgrOpts = '<option value="">Select Manager</option>' + managers.map(m => `<option value="${m.Description}">${m.Description}</option>`).join('');
             
             $('#tehsil-dropdown, #filter-tehsil').html(tehOpts);
-            $('#manager-dropdown, #filter-manager').html(mgrOpts);
             $('#machinary-dropdown, #filter-machinery').html(macOpts);
+            $('#manager-dropdown').html(mgrOpts);
             initSelect2();
         }
 
