@@ -27,6 +27,7 @@
 
         .summary-box { padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px; color: white; }
         .bg-income { background: #22c55e; }
+        .bg-amount-sent { background: #8b5cf6; } /* Purple color for Sent Amount */
         .bg-expense { background: #ef4444; }
         .bg-balance { background: #3b82f6; }
         .bg-tehsil-card { background: #ffffff; border-left: 5px solid #6366f1 !important; }
@@ -215,8 +216,9 @@
                     <div class="col-md-4"><div class="card h-100 card-custom p-4 shadow-sm" onclick="openCategory('ManagerExpenses')"><i class="fas fa-wallet fa-2x text-primary mb-2"></i><h6>Manager Exp</h6></div></div>
                     <div class="col-md-4"><div class="card h-100 card-custom p-4 shadow-sm" onclick="openCategory('Machinary')"><i class="fas fa-tractor fa-2x text-primary mb-2"></i><h6>Machinary</h6></div></div>
                     <div class="col-md-4"><div class="card h-100 card-custom p-4 shadow-sm" onclick="openCategory('MachinaryExpenses')"><i class="fas fa-tools fa-2x text-primary mb-2"></i><h6>Machinary Exp</h6></div></div>
-                    <div class="col-md-4"><div class="card h-100 card-custom p-4 shadow-sm" onclick="openCategory('Income')"><i class="fas fa-sack-dollar fa-2x text-success mb-2"></i><h6>Income</h6></div></div>
-                    <div class="col-md-4 offset-md-4"><div class="card h-100 card-custom p-4 shadow-sm" onclick="openCategory('Salary')"><i class="fas fa-id-card fa-2x text-primary mb-2"></i><h6>Salary</h6></div></div>`;
+                    <div class="col-md-4"><div class="card h-100 card-custom p-4 shadow-sm" onclick="openCategory('Income')"><i class="fas fa-sack-dollar fa-2x text-success mb-2"></i><h6>Income (Tehsil)</h6></div></div>
+                    <div class="col-md-4"><div class="card h-100 card-custom p-4 shadow-sm" onclick="openCategory('AmountSent')"><i class="fas fa-paper-plane fa-2x text-info mb-2"></i><h6>Amount Sent (to Tehsil)</h6></div></div>
+                    <div class="col-md-4"><div class="card h-100 card-custom p-4 shadow-sm" onclick="openCategory('Salary')"><i class="fas fa-id-card fa-2x text-primary mb-2"></i><h6>Salary</h6></div></div>`;
             } else {
                 html = `<div class="col-md-12"><div class="card h-100 card-custom p-5 shadow-sm" onclick="openCategory('ManagerExpenses')"><i class="fas fa-file-invoice-dollar fa-4x text-primary mb-3"></i><h3 class="fw-bold">ADD MY EXPENSES</h3><p>Welcome, ${currentUser.name}</p></div></div>`;
             }
@@ -277,7 +279,6 @@
             if(mgr) data = data.filter(i => i.ManagerName === mgr);
             if(mac) data = data.filter(i => i.MachinaryName === mac);
             
-            // Apply Date Range Filter for regular category list
             if(from || to) {
                 data = data.filter(i => {
                     if(!i.Date) return false;
@@ -295,7 +296,7 @@
                 if(row.Amount) total += parseFloat(row.Amount);
                 return `<tr>${headers.map(h => `<td>${h === 'Date' && row[h] ? row[h].split('T')[0] : (row[h] || '-')}</td>`).join('')}<td class="no-print"><button class="btn btn-sm btn-outline-primary me-1" onclick='editRecord(${JSON.stringify(row)})'><i class="fas fa-pen"></i></button><button class="btn btn-sm btn-outline-danger" onclick="deleteRecord(${row.rowNum})"><i class="fas fa-trash"></i></button></td></tr>`;
             }).join('');
-            if(total > 0) rowsHtml += `<tr class="table-success fw-bold"><td>TOTAL</td><td colspan="10">${total.toLocaleString()}</td></tr>`;
+            if(total > 0) rowsHtml += `<tr class="table-info fw-bold"><td>TOTAL</td><td colspan="10">${total.toLocaleString()}</td></tr>`;
             $('#table-body').html(rowsHtml);
         }
 
@@ -309,6 +310,7 @@
         function generateFinalReport() {
             const teh = $('#filter-tehsil').val(), mgr = $('#filter-manager').val(), mac = $('#filter-machinery').val();
             const from = $('#filter-from').val(), to = $('#filter-to').val();
+            
             let data = allData.filter(i => !['Tehsils', 'Managers', 'Machinary'].includes(i.Category));
             
             if(teh) data = data.filter(i => i.ParentTehsil === teh);
@@ -322,22 +324,58 @@
                 });
             }
 
-            let inc = 0, exp = 0, tehStats = {}; 
-            $('#table-head').html(`<tr><th>Date</th><th>Category</th><th>Details</th><th>Tehsil</th><th>Exp (Debit)</th><th>Inc (Credit)</th></tr>`);
-            let rows = data.map(row => {
-                let amt = parseFloat(row.Amount || 0), isInc = row.Category === 'Income', tName = row.ParentTehsil || "General";
-                if(!tehStats[tName]) tehStats[tName] = { income: 0, expense: 0 };
-                if(isInc) { inc += amt; tehStats[tName].income += amt; } else { exp += amt; tehStats[tName].expense += amt; }
-                return `<tr><td>${row.Date ? row.Date.split('T')[0] : '-'}</td><td><span class="badge ${isInc?'bg-success':'bg-danger'}">${row.Category}</span></td><td><strong>${row.ManagerName || row.MachinaryName || ''}</strong> ${row.Description}</td><td>${tName}</td><td class="text-danger">${!isInc?amt.toLocaleString():'-'}</td><td class="text-success">${isInc?amt.toLocaleString():'-'}</td></tr>`;
+            let totalIncome = 0, totalExp = 0, totalSent = 0;
+            let tehStats = {}; 
+
+            $('#table-head').html(`<tr><th>Date</th><th>Category</th><th>Details</th><th>Tehsil</th><th>Expenses (Debit)</th><th>Amount Received (Credit)</th></tr>`);
+            
+            // Filter only Expenses for the main table rows as per your requirement
+            let expenseData = data.filter(i => i.Category !== 'Income' && i.Category !== 'AmountSent');
+            let incomeData = data.filter(i => i.Category === 'Income');
+            let sentData = data.filter(i => i.Category === 'AmountSent');
+
+            let rows = expenseData.map(row => {
+                let amt = parseFloat(row.Amount || 0), tName = row.ParentTehsil || "General";
+                if(!tehStats[tName]) tehStats[tName] = { income: 0, expense: 0, sent: 0 };
+                tehStats[tName].expense += amt;
+                totalExp += amt;
+                return `<tr><td>${row.Date ? row.Date.split('T')[0] : '-'}</td><td><span class="badge bg-danger">${row.Category}</span></td><td><strong>${row.ManagerName || row.MachinaryName || ''}</strong> ${row.Description}</td><td>${tName}</td><td class="text-danger">${amt.toLocaleString()}</td><td>-</td></tr>`;
             }).join('');
 
-            let tehHtml = `<div class="col-12 mt-4 mb-2"><h5 class="fw-bold border-bottom pb-2">Tehsil Summary</h5></div>`;
+            // Calculate summaries from other categories silently
+            incomeData.forEach(i => { 
+                let tName = i.ParentTehsil || "General";
+                if(!tehStats[tName]) tehStats[tName] = { income: 0, expense: 0, sent: 0 };
+                tehStats[tName].income += parseFloat(i.Amount || 0);
+                totalIncome += parseFloat(i.Amount || 0);
+            });
+            sentData.forEach(i => { 
+                let tName = i.ParentTehsil || "General";
+                if(!tehStats[tName]) tehStats[tName] = { income: 0, expense: 0, sent: 0 };
+                tehStats[tName].sent += parseFloat(i.Amount || 0);
+                totalSent += parseFloat(i.Amount || 0);
+            });
+
+            // Footer Rows for Totaling
+            rows += `<tr class="table-dark fw-bold"><td colspan="4">TOTAL EXPENSES</td><td class="text-danger">${totalExp.toLocaleString()}</td><td>-</td></tr>`;
+            rows += `<tr class="table-info fw-bold"><td colspan="4">TOTAL AMOUNT SENT TO THIS TEHSIL</td><td>-</td><td class="text-primary">${totalSent.toLocaleString()}</td></tr>`;
+            
+            let grandBal = totalSent - totalExp;
+            rows += `<tr class="${grandBal >=0 ? 'table-success' : 'table-danger'} fw-bold"><td colspan="4">FINAL BALANCE (Sent - Exp)</td><td colspan="2" class="text-center">${grandBal.toLocaleString()}</td></tr>`;
+
+            let tehHtml = `<div class="col-12 mt-4 mb-2"><h5 class="fw-bold border-bottom pb-2">Tehsil Summary Card</h5></div>`;
             for (let t in tehStats) {
-                let bal = tehStats[t].income - tehStats[t].expense;
-                tehHtml += `<div class="col-md-4 mb-3"><div class="card p-3 shadow-sm bg-tehsil-card border-0"><h6 class="fw-bold text-primary mb-1">${t}</h6><div class="d-flex justify-content-between small text-muted"><span>Inc: ${tehStats[t].income.toLocaleString()}</span><span>Exp: ${tehStats[t].expense.toLocaleString()}</span></div><div class="mt-2 pt-2 border-top d-flex justify-content-between"><strong>Balance:</strong> <strong class="${bal >=0 ? 'text-success' : 'text-danger'}">${bal.toLocaleString()}</strong></div></div></div>`;
+                let bal = tehStats[t].sent - tehStats[t].expense;
+                tehHtml += `<div class="col-md-4 mb-3"><div class="card p-3 shadow-sm bg-tehsil-card border-0"><h6 class="fw-bold text-primary mb-1">${t}</h6><div class="small text-muted">Income From Tehsil: ${tehStats[t].income.toLocaleString()}</div><div class="d-flex justify-content-between small text-muted"><span>Sent to Tehsil: ${tehStats[t].sent.toLocaleString()}</span><span>Expenses: ${tehStats[t].expense.toLocaleString()}</span></div><div class="mt-2 pt-2 border-top d-flex justify-content-between"><strong>Balance:</strong> <strong class="${bal >=0 ? 'text-success' : 'text-danger'}">${bal.toLocaleString()}</strong></div></div></div>`;
             }
+            
             $('#table-body').html(rows || "<tr><td colspan='6' class='text-center'>No data found</td></tr>");
-            $('#summary-highlights').html(`<div class="col-md-4"><div class="summary-box bg-income"><h6>Income</h6><h3>${inc.toLocaleString()}</h3></div></div><div class="col-md-4"><div class="summary-box bg-expense"><h6>Expenses</h6><h3>${exp.toLocaleString()}</h3></div></div><div class="col-md-4"><div class="summary-box bg-balance"><h6>Grand Balance</h6><h3>${(inc-exp).toLocaleString()}</h3></div></div>${tehHtml}`);
+            $('#summary-highlights').html(`
+                <div class="col-md-3"><div class="summary-box bg-income"><h6>Tehsil Income</h6><h3>${totalIncome.toLocaleString()}</h3></div></div>
+                <div class="col-md-3"><div class="summary-box bg-amount-sent"><h6>Total Amount Sent</h6><h3>${totalSent.toLocaleString()}</h3></div></div>
+                <div class="col-md-3"><div class="summary-box bg-expense"><h6>Total Expenses</h6><h3>${totalExp.toLocaleString()}</h3></div></div>
+                <div class="col-md-3"><div class="summary-box bg-balance"><h6>Remaining Balance</h6><h3>${(totalSent-totalExp).toLocaleString()}</h3></div></div>
+                ${tehHtml}`);
         }
 
         function applyFilters() { renderTable(allData.filter(i => i.Category === currentCategory)); }
